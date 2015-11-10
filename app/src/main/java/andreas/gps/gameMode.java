@@ -1,6 +1,7 @@
 package andreas.gps;
 
 // insert here the main game activity
+//holoholo
 
 import android.app.Dialog;
 import android.app.Fragment;
