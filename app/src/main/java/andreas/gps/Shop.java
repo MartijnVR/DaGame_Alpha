@@ -7,7 +7,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.widget.TextView;
 
-// dit is shop
+// dit is shop lol
 public class Shop extends AppCompatActivity {
 
     private String PointInformation = "Remaining Points :  ";
