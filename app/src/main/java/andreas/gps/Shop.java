@@ -7,9 +7,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.widget.TextView;
 
-/**
- * Created by Andreas on 20/11/2015.
- */
+// dit is shop
 public class Shop extends AppCompatActivity {
 
     private String PointInformation = "Remaining Points :  ";
