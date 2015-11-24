@@ -23,4 +23,16 @@
     <string name="title_activity_register">Register</string>
     <string name="email_text">Email</string>
     <string name="confirm_password_text">Confirm password</string>
+    <string name="powerUpOffensive">offensive</string>
+    <string name="powerUpOffensiveUpdateFrequency">increase update frquency</string>
+    <string name="powerUpOffensiveEasyKill">easy kill move</string>
+    <string name="powerUpDefensiveStopSignal">Signal stop Moving</string>
+    <string name="powerUpDefensivePictures">only pictures</string>
+    <string name="powerUpDefensiveTitle">Defensive</string>
+    <string name="powerUpDefensiveSound">only Sound</string>
+    <string name="powerUpDefensivePursuer">circle around pursuer</string>
+    <string name="powerUpDefensiveUpdateFrequency">slow update frequency</string>
+    <string name="powerUpDefensiveHardKill">hard kill move</string>
+    <string name="label_shop">shop</string>
+    <string name="buy_text">buy</string>
 </resources>

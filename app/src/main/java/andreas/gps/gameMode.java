@@ -22,6 +22,7 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -78,7 +79,7 @@ public class gameMode extends AppCompatActivity
     public float zoomlevel = 18;
     public boolean zoomed = false;
     public LatLng loc;
-    static final String STATE_SCORE = "playerScore";
+    public static final String STATE_SCORE = "playerScore";
     Calendar c = Calendar.getInstance();
     private double mySpeed = 0;
     private int kill_button_counter = 0;
@@ -98,6 +99,7 @@ public class gameMode extends AppCompatActivity
     private double killmoveSpeedValue = 6.4;
     private double killmovelightValue = 2;
     private double killmovePressButtonValue = 5;
+    private long killmovetimer = 30000;
 
 
 
@@ -331,7 +333,7 @@ public class gameMode extends AppCompatActivity
         String points_str = (String) points_score.getText();
         int mCurrentScore = Integer.parseInt(points_str);
         editor.putInt(STATE_SCORE, mCurrentScore);
-        editor.apply();
+        editor.commit();
     }
 
     @Override
@@ -404,7 +406,7 @@ public class gameMode extends AppCompatActivity
 
     public void killMoveAccelor(View view) {
 
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
             public Sensor_SAVE sensorsave = new Sensor_SAVE();
@@ -443,7 +445,7 @@ public class gameMode extends AppCompatActivity
 
     public void killMoveSound(View view) {
 
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
             SoundAct soundact = new SoundAct(0);
@@ -478,7 +480,7 @@ public class gameMode extends AppCompatActivity
     }
     public void killMoveGyroscoop(View view) {
 
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
             public Sensor_SAVE sensorsave = new Sensor_SAVE();
@@ -517,7 +519,7 @@ public class gameMode extends AppCompatActivity
 
     public void killMovelight(View view) {
 
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
             public Sensor_SAVE sensorsave = new Sensor_SAVE();
@@ -555,7 +557,7 @@ public class gameMode extends AppCompatActivity
     }
     public void killMoveSpeed(View view) {
 
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
 
@@ -590,12 +592,13 @@ public class gameMode extends AppCompatActivity
     }
 
     public void killMovePressButton(View view) {
-        CountDownTimer start = new CountDownTimer(5000, 200) {
+        CountDownTimer start = new CountDownTimer(killmovetimer, 200) {
             Button kill_button = (Button) findViewById(R.id.kill_button);
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
             TextView points_score = (TextView) findViewById(R.id.points_score);
 
             public void onTick(long millisUntilFinished) {
+                killMoveText.setVisibility(View.VISIBLE);
                 killMoveText.setText(killmovePressButtonText + millisUntilFinished / 1000);
                 kill_button.setVisibility(View.VISIBLE);
                 if (kill_button_counter > killmovePressButtonValue) {
@@ -608,6 +611,7 @@ public class gameMode extends AppCompatActivity
 
             public void onFinish() {
                 kill_button_counter = 0;
+                kill_button.setVisibility(View.GONE);
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -690,9 +694,19 @@ public class gameMode extends AppCompatActivity
         if (id == R.id.action_settings) {
             return true;
         }
+        else if (id == R.id.toolbar_shop) {
+            switchShop(null);
+        }
 
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.toolbar_buttons_gamemode, menu);
+        return true;
     }
 
     @Override
@@ -705,6 +719,11 @@ public class gameMode extends AppCompatActivity
 
         // Always call the superclass so it can save the view hierarchy state
         super.onSaveInstanceState(savedInstanceState);
+    }
+
+    public void switchShop(View view) {
+        Intent intent = new Intent(this, Shop.class);
+        startActivity(intent);
     }
 
 
