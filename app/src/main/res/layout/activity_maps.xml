@@ -68,7 +68,9 @@
         android:visibility="gone"
         android:id="@+id/killMoveText"
         android:layout_marginTop="62dp"
-        android:textColor="#000000"/>
+        android:textColor="#000000"
+        android:background="#FFFFFF"
+        android:layout_centerHorizontal="true"/>
 
     <include layout="@layout/toolbar_low_in_rank"/>
 

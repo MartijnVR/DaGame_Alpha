@@ -18,6 +18,9 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.provider.Settings;
+import android.support.design.widget.NavigationView;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -53,7 +56,7 @@ import andreas.gps.sensoren.Sensor_SAVE;
 import andreas.gps.sensoren.SoundAct;
 
 public class gameMode extends AppCompatActivity
-        implements OnMapReadyCallback,
+        implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
 
@@ -108,12 +111,22 @@ public class gameMode extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maps);
+        setContentView(R.layout.nav_drawer_low_in_rank);
 
         //login
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar_low_in_rank);
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+        // navigation drawer
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout_low_in_rank);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawer.setDrawerListener(toggle);
+        toggle.syncState();
+
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view_low_in_rank);
+        navigationView.setNavigationItemSelectedListener(this);
 
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -695,7 +708,7 @@ public class gameMode extends AppCompatActivity
             return true;
         }
         else if (id == R.id.toolbar_shop) {
-            switchShop(null);
+            return true;
         }
 
 
@@ -721,11 +734,11 @@ public class gameMode extends AppCompatActivity
         super.onSaveInstanceState(savedInstanceState);
     }
 
-    public void switchShop(View view) {
-        Intent intent = new Intent(this, Shop.class);
-        startActivity(intent);
+
+    @Override
+    public boolean onNavigationItemSelected(MenuItem menuItem) {
+
+        return false;
     }
-
-
 }
 

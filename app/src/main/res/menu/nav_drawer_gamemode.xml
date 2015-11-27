@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:title="@string/powerUpOffensive">
+        <menu>
+            <item
+                android:id="@+id/powerUpOffensiveUpdateFrequency"
+                android:title="@string/powerUpOffensiveUpdateFrequency"
+                />
+            <item
+                android:id="@+id/powerUpOffensiveEasyKill"
+                android:title="@string/powerUpOffensiveEasyKill"
+                />
+        </menu>
+    </item>
+    <item android:title="@string/powerUpDefensiveTitle">
+        <menu>
+            <item
+                android:id="@+id/powerUpDefensiveStopSignal"
+                android:title="@string/powerUpDefensiveStopSignal"
+                />
+            <item
+                android:id="@+id/powerUpDefensivePictures"
+                android:title="@string/powerUpDefensivePictures"
+                />
+            <item
+                android:id="@+id/powerUpDefensiveSound"
+                android:title="@string/powerUpDefensiveSound"
+                />
+            <item
+                android:id="@+id/powerUpDefensivePursuer"
+                android:title="@string/powerUpDefensivePursuer"
+                />
+            <item
+                android:id="@+id/powerUpDefensiveUpdateFrequency"
+                android:title="@string/powerUpDefensiveUpdateFrequency"
+                />
+            <item
+                android:id="@+id/powerUpDefensiveHardKill"
+                android:title="@string/powerUpDefensiveHardKill"
+                />
+        </menu>
+    </item>
+</menu>
