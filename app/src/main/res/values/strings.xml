@@ -7,7 +7,7 @@
     <string name="navigation_drawer_open">open</string>
     <string name="navigation_drawer_close">close</string>
     <string name="action_settings">settings</string>
-    <string name="label_activity_gameMode">gameMode</string>
+    <string name="label_activity_gameMode">Game Mode</string>
     <string name="data">data</string>
     <string name="minigame">minigame</string>
     <string name="points_text">Points:</string>
