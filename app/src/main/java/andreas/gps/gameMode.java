@@ -48,14 +48,15 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import java.util.Calendar;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Calendar;
 import java.util.EmptyStackException;
-import java.util.List;
-import java.lang.Math;
+import java.util.Random;
 
+import andreas.gps.sensoren.SensorActor;
 import andreas.gps.sensoren.SensorCollector;
 import andreas.gps.sensoren.Sensor_SAVE;
 import andreas.gps.sensoren.SoundAct;
@@ -66,6 +67,8 @@ public class gameMode extends AppCompatActivity
         LocationListener {
 
     //    variables
+
+    public SensorCollector sensorcol;
 
     private Circle circleTarget;
     private double r = 10.0;
@@ -162,6 +165,12 @@ public class gameMode extends AppCompatActivity
     //Lifecycle
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+        ////
+        SensorActor sensorsave = new Sensor_SAVE();
+        sensorcol = new SensorCollector(sensorsave);
+        ///
+
         Log.i(TAG, "Got into oncreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.nav_drawer_low_in_rank);
@@ -421,19 +430,53 @@ public class gameMode extends AppCompatActivity
         }
     }
     public void killMovegenerator(View view) {
-        int seconds = c.get(Calendar.SECOND);
-        if (seconds < 10) {
-            killMoveAccelor(null);
-        } else if (seconds >= 10 && seconds < 20) {
-            killMoveGyroscoop(null);
-        } else if (seconds >= 20 && seconds < 30) {
-            killMoveSound(null);
-        } else if (seconds >= 40 && seconds < 50) {
-            killMoveSpeed(null);
-        } else if (seconds >= 50 && seconds < 55) {
-            killMovePressButton(null);
-        } else if (seconds >= 55) {
-            killMovelight(null);
+        Random rand = new Random();
+        SensorActor sensorsave = new Sensor_SAVE();
+        sensorcol.set(sensorsave);
+        sensorcol.start(getApplicationContext());
+
+        int random = rand.nextInt(6);
+        switch (random){
+            case 0:
+                // check if compatible
+                if (sensorcol.has_sensor(sensorcol.accelerometer)){
+                    killMoveAccelor(null);
+                }
+                else{
+                    killMovegenerator(null);
+                }
+                break;
+            case 1:
+                // check if compatible -> run
+                if (sensorcol.has_sensor(sensorcol.gyroscoop)){
+                    killMoveGyroscoop(null);
+                }
+                else{
+                    killMovegenerator(null);
+                }
+                break;
+            case 2:
+                // geen sensorcollector nodig -->
+                sensorcol.stop();
+                // check if compatible -> run
+                killMoveGyroscoop(null);
+
+                break;
+            case 3:
+                sensorcol.stop();
+                killMoveSpeed(null);
+                break;
+            case 4:
+                sensorcol.stop();
+                killMovePressButton(null);
+                break;
+            case 5:
+                if (sensorcol.has_sensor(sensorcol.light)){
+                    killMovelight(null);
+                }
+                else{
+                    killMovegenerator(null);
+                }
         }
     }
     public void killMoveAccelor(View view) {

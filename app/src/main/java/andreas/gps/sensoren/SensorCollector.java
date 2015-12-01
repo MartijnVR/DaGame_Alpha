@@ -22,13 +22,19 @@ import java.util.Stack;
 
 public class SensorCollector implements SensorEventListener {
     public String TAG = "abcd";
+    public int accelerometer = Sensor.TYPE_ACCELEROMETER;
+    public int gyroscoop = Sensor.TYPE_GYROSCOPE;
+    public int magnetic_field= Sensor.TYPE_MAGNETIC_FIELD;
+    public int proximity = Sensor.TYPE_PROXIMITY;
+    public int grv = Sensor.TYPE_GAME_ROTATION_VECTOR;
+    public int light = Sensor.TYPE_LIGHT;
+
     private static SensorManager sensorManager;
     public void start(Context context) {
         sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
         //lastUpdate = System.currentTimeMillis();
         //register this class as a listener for the orientation and
         // accelerometer sensors
-
         sensorManager.registerListener(this,
                 sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
                 SensorManager.SENSOR_DELAY_FASTEST);
@@ -47,6 +53,18 @@ public class SensorCollector implements SensorEventListener {
         sensorManager.registerListener(this,
                 sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT),
                 SensorManager.SENSOR_DELAY_NORMAL);
+
+
+    }
+
+    public boolean has_sensor(int sensor){
+        if  (sensorManager.getDefaultSensor(sensor)!=null){
+            return true;
+        }
+        else {
+            return false;
+        }
+
 
     }
 
