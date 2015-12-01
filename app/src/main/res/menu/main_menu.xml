@@ -48,24 +48,19 @@
                 android:id="@+id/login_toolbar"
                 android:title="@string/login_button_text"
                 android:icon="@drawable/ic_stat_name"
-
             />
 
             <item
                 android:id="@+id/user_toolbar"
                 android:title="User Profile"
                 android:icon="@drawable/ic_stat_name"
-
                 />
 
             <item
                 android:id="@+id/logout_toolbar"
                 android:title="Logout"
                 android:icon="@drawable/ic_stat_name"
-
-
                 />
-
 
         </menu>
 

@@ -8,9 +8,12 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationManager;
+import android.media.MediaPlayer;
+import android.media.MediaRecorder;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -48,6 +51,14 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.annotation.Target;
 import java.util.Calendar;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -61,14 +72,15 @@ import andreas.gps.sensoren.Sensor_SAVE;
 import andreas.gps.sensoren.SoundAct;
 
 public class gameMode extends AppCompatActivity
-        implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
+        implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener, Servercomm.ServercommEventListener, NavigationView.OnNavigationItemSelectedListener {
 
     //    variables
 
+    private Circle circleLoc;
     private Circle circleTarget;
-    private double r = 10.0;
+    private double radius = 10.0;
     private static final String TAG = "abcd";
     private LatLng CURRENT_TARGET;
     private Marker markerTarget;
@@ -79,14 +91,14 @@ public class gameMode extends AppCompatActivity
     public Marker mymarker;
     boolean gps_connected = false;
     boolean network_connected = false;
-    boolean connections_working = false;
     public float zoomlevel = 18;
     public boolean zoomed = false;
     public LatLng loc;
-    public final String STATE_SCORE = "playerScore";
     Calendar c = Calendar.getInstance();
     private double mySpeed = 0;
     private int kill_button_counter = 0;
+    Marker markerTarget2 = null;
+    public boolean Soundpowerup = false;
 
     //text kkillmoves
     public String TAG2 = "abcdef";
@@ -106,6 +118,8 @@ public class gameMode extends AppCompatActivity
     private double killmovelightValue = 2;
     private double killmovePressButtonValue = 5;
     private long killmovetimer = 30000;
+    public boolean killmoveconfirmed = false;
+
     public String myusername;
     Servercomm mServercomm = new Servercomm();
     public String NotifyOffline = "NotifyOffline";
@@ -114,9 +128,9 @@ public class gameMode extends AppCompatActivity
     public String eliminated = "eliminated";
     public String pickedTarget = "pickedTarget";
     public int huntedby = 0;
-    public String droppedTarget = "droppedTarget";
     public String locationUpdate = "locationUpdate";
     public String priorityID = "";
+    public boolean easykill = false;
     private Handler mHandler = new Handler();
     public double prioritylevel = 0;
     public LatLng targetLocation;
@@ -135,28 +149,23 @@ public class gameMode extends AppCompatActivity
     public int targetpoints = 0;
     public int mymoney;
     Dialog alertDialog;
-    private Runnable targetLocationRequest = new Runnable() {
+    public boolean stopSignal = false;
+    Integer frequencyUpdate = 32768;
+    public String pursuer = "";
+    private Runnable targetLocationRequest;
+    private Runnable FollowPursuer = new Runnable() {
         @Override
         public void run() {
-            Log.i(TAG, "running targetLocationRequest");
-            if (missedLocationUpdates > 2){
-                Toast.makeText(gameMode.this, "Target not responding, getting new target", Toast.LENGTH_SHORT).show();
-                changeTarget();
-            } else if (TargetID.equals("")){
-                Log.i(TAG, "Track new target");
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        changeTarget();
-                    }
-                },60000);
-            } else {
-                Log.i(TAG, "request LocationUpdate");
-                requestLocationUpdate();
-                mHandler.postDelayed(targetLocationRequest, 20000);
-            }
+            requestLocationUpdate("");
+            mHandler.postDelayed(FollowPursuer, 5000);
         }
     };
+    public String audioFilePath;
+    byte[] bytes;
+    byte[] sound;
+    public MediaRecorder mediaRecorder;
+    AlertDialog.Builder builder;
+
 
 
     //Lifecycle
@@ -179,7 +188,8 @@ public class gameMode extends AppCompatActivity
                 this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawer.setDrawerListener(toggle);
         toggle.syncState();
-        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view_low_in_rank);
+
+        final NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view_low_in_rank);
         navigationView.setNavigationItemSelectedListener(this);
 
 
@@ -194,6 +204,7 @@ public class gameMode extends AppCompatActivity
         preferences = getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
         editor = preferences.edit();
         editor.apply();
+        audioFilePath = getFilesDir().getAbsolutePath()+"abc.3gp";
         points_score = (TextView) findViewById(R.id.points_score);
         myusername = preferences.getString("myusername","unknown");
         mGoogleApiClient = new GoogleApiClient.Builder(this)
@@ -205,11 +216,35 @@ public class gameMode extends AppCompatActivity
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(5000)        // 5 seconds, in milliseconds
                 .setFastestInterval(1000); // 1 second, in milliseconds
-
+        assignTargetLocationRequest();
 
         Log.i(TAG, "Oncreate success");
+    }
 
 
+    public void assignTargetLocationRequest(){
+        targetLocationRequest = new Runnable() {
+            @Override
+            public void run() {
+                Log.i(TAG, "running targetLocationRequest");
+                if (missedLocationUpdates > 2){
+                    Toast.makeText(gameMode.this, "Target not responding, getting new target", Toast.LENGTH_SHORT).show();
+                    changeTarget();
+                } else if (TargetID.equals("")){
+                    Log.i(TAG, "Track new target");
+                    mHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            changeTarget();
+                        }
+                    },60000);
+                } else {
+                    Log.i(TAG, "request LocationUpdate");
+                    requestLocationUpdate(TargetID);
+                    mHandler.postDelayed(targetLocationRequest, frequencyUpdate);
+                }
+            }
+        };
     }
     @Override
     protected void onPause() {
@@ -231,14 +266,27 @@ public class gameMode extends AppCompatActivity
         Log.i(TAG, "Onresume");
         zoomed = false;
         super.onResume();
+        Long data = 0L;
+        try {
+            Context con = createPackageContext("com.cw.game.android", 0);
+            SharedPreferences pref = con.getSharedPreferences(
+                    "MyPreferences", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editorgame = pref.edit();
+            editorgame.apply();
+            data = pref.getLong("deltatime", 0);
+            data /= 1000;
+            editorgame.putLong("deltatime",0);
+            editorgame.apply();
+
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e("Not data shared", e.toString());
+        }
         if (activeNetwork != null && activeNetwork.isConnected()) network_connected = true;
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) gps_connected = true;
         Log.i(TAG, "Connecting apiclient");
         mGoogleApiClient.connect();
         Log.i(TAG, "getting score");
-        mypoints = 0;
-        mymoney = preferences.getInt("mypoints", 0);
-        mypoints += mymoney;
+        mypoints += data.intValue();
         points_score.setText(String.format("%d", mypoints));
         mHandler.postDelayed(new Runnable() {
 
@@ -259,6 +307,8 @@ public class gameMode extends AppCompatActivity
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            return true;
+        } else if (id == R.id.toolbar_shop) {
             return true;
         }
 
@@ -361,6 +411,8 @@ public class gameMode extends AppCompatActivity
             zoomed = true;
         }
 
+
+
         if (mymarker != null) {
             mymarker.remove();
         }
@@ -415,14 +467,17 @@ public class gameMode extends AppCompatActivity
 
     //Killmove
     public void initiateKillmove(LatLng location, LatLng target) {
-        if (CalculationByDistance(location, target) <= r * 2) {
+        if (CalculationByDistance(location, target) <= radius) {
             killMovegenerator(null);
             changeTarget();
         }
     }
     public void killMovegenerator(View view) {
         int seconds = c.get(Calendar.SECOND);
-        if (seconds < 10) {
+        if (easykill){
+            killMovePressButton(null);
+            easykill = false;
+        } else if (seconds < 10) {
             killMoveAccelor(null);
         } else if (seconds >= 10 && seconds < 20) {
             killMoveGyroscoop(null);
@@ -446,12 +501,17 @@ public class gameMode extends AppCompatActivity
 
             public void onTick(long millisUntilFinished) {
                 killMoveText.setVisibility(View.VISIBLE);
-                killMoveText.setText(killmoveAcellorText + millisUntilFinished / 1000);
                 sensorcol.start(getApplicationContext());
+
+                if (killmoveconfirmed==false) {
+                    killMoveText.setText(killmoveAcellorText + millisUntilFinished / 1000);
+                }
+
                 try {
 
                     if (sensorsave.getAccelerox() > killmoveAcellorValue) {
                         killMoveText.setText(killedText);
+                        killmoveconfirmed=true;
 
 
                     }
@@ -462,6 +522,7 @@ public class gameMode extends AppCompatActivity
 
             public void onFinish() {
                 sensorcol.stop();
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -485,15 +546,21 @@ public class gameMode extends AppCompatActivity
 
             public void onTick(long millisUntilFinished) {
                 killMoveText.setVisibility(View.VISIBLE);
-                killMoveText.setText(killmoveSoundText + millisUntilFinished / 1000);
                 soundact.getMaxsound();
+
+                if (!killmoveconfirmed) {
+                    killMoveText.setText(killmoveSoundText + millisUntilFinished / 1000);
+                }
+
                 if (soundact.getMaxsound() > killmoveSoundValue) {
                     killMoveText.setText(killedText);
+                    killmoveconfirmed=true;
 
                 }
             }
 
             public void onFinish() {
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -518,11 +585,16 @@ public class gameMode extends AppCompatActivity
 
             public void onTick(long millisUntilFinished) {
                 killMoveText.setVisibility(View.VISIBLE);
-                killMoveText.setText(killmoveGyroText + millisUntilFinished / 1000);
                 sensorcol.start(getApplicationContext());
+
+                if (!killmoveconfirmed) {
+                    killMoveText.setText(killmoveGyroText + millisUntilFinished / 1000);
+                }
+
                 try {
                     if (sensorsave.getGyroscoopx() > killmoveGyroValue) {
                         killMoveText.setText(killedText);
+                        killmoveconfirmed=true;
 
 
                     }
@@ -533,6 +605,7 @@ public class gameMode extends AppCompatActivity
 
             public void onFinish() {
                 sensorcol.stop();
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -557,13 +630,17 @@ public class gameMode extends AppCompatActivity
 
             public void onTick(long millisUntilFinished) {
                 killMoveText.setVisibility(View.VISIBLE);
-                killMoveText.setText(killmovelightText + millisUntilFinished / 1000);
                 sensorcol.start(getApplicationContext());
+
+                if (!killmoveconfirmed) {
+                    killMoveText.setText(killmovelightText + millisUntilFinished / 1000);
+                }
+
                 try {
 
                     if (sensorsave.getLicht() < killmovelightValue) {
                         killMoveText.setText(killedText);
-
+                        killmoveconfirmed=true;
 
                     }
                 } catch (EmptyStackException e) {
@@ -574,6 +651,7 @@ public class gameMode extends AppCompatActivity
 
             public void onFinish() {
                 sensorcol.stop();
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -596,13 +674,19 @@ public class gameMode extends AppCompatActivity
 
             public void onTick(long millisUntilFinished) {
                 killMoveText.setVisibility(View.VISIBLE);
-                killMoveText.setText(killmoveSpeedText + millisUntilFinished / 1000);
+
+                if (!killmoveconfirmed) {
+                    killMoveText.setText(killmoveSpeedText + millisUntilFinished / 1000);
+                }
+
                 if (mySpeed > killmoveSpeedValue) {
                     killMoveText.setText(killedText);
+                    killmoveconfirmed=true;
                 }
             }
 
             public void onFinish() {
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -626,11 +710,16 @@ public class gameMode extends AppCompatActivity
             TextView points_score = (TextView) findViewById(R.id.points_score);
 
             public void onTick(long millisUntilFinished) {
-                killMoveText.setText(killmovePressButtonText + millisUntilFinished / 1000);
                 kill_button.setVisibility(View.VISIBLE);
+
+                if (!killmoveconfirmed) {
+                    killMoveText.setText(killmovePressButtonText + millisUntilFinished / 1000);
+                }
+
                 if (kill_button_counter > killmovePressButtonValue) {
                     kill_button.setText(killedText);
                     killMoveText.setText(killedText);
+                    killmoveconfirmed=true;
 
 
                 }
@@ -639,6 +728,7 @@ public class gameMode extends AppCompatActivity
             public void onFinish() {
                 kill_button_counter = 0;
                 kill_button.setVisibility(View.GONE);
+                killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
@@ -653,7 +743,90 @@ public class gameMode extends AppCompatActivity
         }.start();
 
     }
+    public void record(String sender1) {
+        Log.i(TAG,"record");
+        final String sender = sender1;
+        mediaRecorder = new MediaRecorder();
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+        mediaRecorder.setOutputFile(audioFilePath);
+        mediaRecorder.setMaxDuration(5000);
+        //na maxduration...
+        mediaRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
+            @Override
+            public void onInfo(MediaRecorder mr, int what, int extra) {
+                if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
+                    Log.i(TAG, "mediarecorder stop");
+                    mediaRecorder.stop();
+                    mediaRecorder.release();
+                    verwerkopname(sender);
 
+                }
+            }
+        });
+        try {
+            mediaRecorder.prepare();
+            Log.i(TAG,"mediaRecorder.start");
+            mediaRecorder.start();
+        } catch (IOException e) {
+            Log.i(TAG, e.toString());
+        }
+    }
+    public void verwerkopname(String sender) {
+        Log.i(TAG, "verwerkopname");
+        int bytesRead;
+        try {
+            InputStream is = new FileInputStream(new File(audioFilePath));
+
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+            byte[] b = new byte[1024];
+
+            while ((bytesRead = is.read(b)) != -1) {
+
+                bos.write(b, 0, bytesRead);
+
+
+            }
+            bytes = bos.toByteArray();
+
+            JSONObject data = new JSONObject();
+            data.put("sound", bytes);
+            data.put("sender", myusername);
+            data.put("receiver",sender);
+            data.put("category",locationUpdate);
+            data.put("message", "giveNewSound");
+            data.put("latitude", loc.latitude);
+            data.put("longitude", loc.longitude);
+            data.put("points", mypoints);
+            Log.i(TAG, "sendsoundmessage");
+            mServercomm.sendMessage(data);
+
+        } catch (Exception e) {
+            Log.i(TAG, e.toString());
+        }
+    }
+    public void speelsound(){
+        Log.i(TAG, "speelsound");
+        try {
+            FileOutputStream fos = null;
+
+            File path = File.createTempFile("temp_audio", "3gp", getCacheDir());
+            fos = new FileOutputStream(path);
+            fos.write(sound);
+            fos.close();
+            MediaPlayer mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(String.valueOf(path));
+            mediaPlayer.prepare();
+            mediaPlayer.start();
+            Log.i(TAG, "playing");
+        } catch (Exception e){
+            Log.i(TAG,e.toString());
+        }
+
+
+    }
 
     //Target interaction
     public void notifyOffline(String receiver){
@@ -693,6 +866,9 @@ public class gameMode extends AppCompatActivity
     }
     public void changeTarget() {
         Log.i(TAG, "changeTarget");
+        if (markerTarget != null){
+            markerTarget.remove();
+        }
         prioritylevel = 0;
         priorityID = "";
         JSONObject data = new JSONObject();
@@ -725,11 +901,6 @@ public class gameMode extends AppCompatActivity
                 } else {
                     Log.i(TAG, "no target found yet");
                     progressDialog.dismiss();
-                    try{
-                        alertDialog.dismiss();
-                    } catch (NullPointerException e){
-                        Log.i(TAG,e.toString());
-                    }
                     show_alertdialog_target();
                 }
                 targetLocationRequest.run();
@@ -754,11 +925,16 @@ public class gameMode extends AppCompatActivity
         mServercomm.sendMessage(data);
     }
     public void show_alertdialog_target(){
+        try{
+            alertDialog.cancel();
+        } catch (Exception e){
+            e.printStackTrace();
+        }
         Log.i(TAG, "show_alertdialog_target");
-        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder = new AlertDialog.Builder(this);
         builder.setTitle("No target found :(");
         builder.setMessage("Don't quit. We will try again in a minute.");
-        builder.setPositiveButton("Wait for another player", new DialogInterface.OnClickListener() {
+        builder.setPositiveButton("Wait for\nanother player", new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialogInterface, int i) {
                 Log.i(TAG, "Continue playing");
             }
@@ -770,24 +946,29 @@ public class gameMode extends AppCompatActivity
             }
         });
         alertDialog = builder.create();
-        alertDialog.setCanceledOnTouchOutside(false);
-        builder.show();
+        alertDialog.setCanceledOnTouchOutside(true);
+        alertDialog.show();
     }
     public void targetbutton(View view) {
         Log.i(TAG, "Targetbutton pressed.");
-        LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
-        boundsBuilder.include(loc);
-        boundsBuilder.include(CURRENT_TARGET);
+        if (!TargetID.equals("")) {
+            LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
+            boundsBuilder.include(loc);
+            boundsBuilder.include(CURRENT_TARGET);
 // pan to see all markers on map:
-        LatLngBounds bounds = boundsBuilder.build();
-        mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
+            LatLngBounds bounds = boundsBuilder.build();
+            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
+        }
     }
-    public void requestLocationUpdate() {
+    public void requestLocationUpdate(String target) {
+        if (target.equals(TargetID)){
+            missedLocationUpdates +=1;
+        }
         Log.i(TAG, "requestLocationUpdate");
         JSONObject data = new JSONObject();
         try {
             data.put("sender", myusername);
-            data.put("receiver",TargetID);
+            data.put("receiver",target);
             data.put("category",locationUpdate);
             data.put("message",getNewLocation);
             data.put("points",mypoints);
@@ -805,7 +986,7 @@ public class gameMode extends AppCompatActivity
             //String points_str = (String) points_score.getText();
             //int points_int = Integer.parseInt(points_str);
             int points_int = 1000;
-            double priority = 2 * Math.log10(points_int);
+            double priority = Math.log10(points_int);
             priority -= huntedby;
             JSONObject data = new JSONObject();
             try {
@@ -866,7 +1047,7 @@ public class gameMode extends AppCompatActivity
                 markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title("TARGET"));
                 circleTarget = mMap.addCircle(new CircleOptions()
                         .center(CURRENT_TARGET)
-                        .radius(5)
+                        .radius(radius)
                         .strokeColor(Color.RED));
             } else {
                 assert markerTarget != null;
@@ -876,14 +1057,24 @@ public class gameMode extends AppCompatActivity
                 markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title("TARGET"));
                 circleTarget = mMap.addCircle(new CircleOptions()
                         .center(CURRENT_TARGET)
-                        .radius(5)
+                        .radius(radius)
                         .strokeColor(Color.RED));
 
-        }
-
+            }
         } else {
             changeTarget();
         }
+    }
+    public void updatePursuerLocation(LatLng location) {
+        Log.i(TAG, "updating pursuer location");
+        LatLng pursuer = location;
+        Log.i(TAG, "exception");
+        if (markerTarget2 != null) {
+            markerTarget2.remove();
+        }
+        markerTarget2 = mMap.addMarker(new MarkerOptions().position(pursuer).title("PURSUER"));
+
+
     }
     public void respondToMessage() {
         Log.i(TAG2, "starting respondtomessage");
@@ -916,6 +1107,8 @@ public class gameMode extends AppCompatActivity
                 } else if (message.equals(getPriorities)) {
                     Log.i(TAG2, "Condition 1.2");
                     sendPriority(sender,targetLocation);
+                } else if (category.equals(locationUpdate) && sender.equals(TargetID)){
+                    sendLocation(sender);
                 }
             } else if (receiver.equals(myusername)) {
                 Log.i(TAG2, "Condition 2");
@@ -931,15 +1124,39 @@ public class gameMode extends AppCompatActivity
                 } else if (category.equals(locationUpdate)) {
                     Log.i(TAG2, "Condition 2.4");
                     if (message.equals(getNewLocation)) {
-                        Log.i(TAG2, "Condition 2.4.1");
-                        sendLocation(sender);
+                        if (stopSignal) {
+                            Log.i(TAG2, "Condition 2.4.2");
+                            warnStopSignal(sender);
+                        } else if (Soundpowerup){
+                            record(sender);
+                        } else {
+                            Log.i(TAG2, "Condition 2.4.1");
+                            sendLocation(sender);
+                        }
                     } else if (message.equals(giveNewLocation)) {
-                        Log.i(TAG2, "Condition 2.4.2");
+                        if (sender.equals(TargetID)) {
+                            Log.i(TAG2, "Condition 2.4.2");
+                            progressDialog.dismiss();
+                            missedLocationUpdates = 0;
+                            targetpoints = points;
+                            updateTargetLocation(targetLocation);
+                        } else if (sender.equals(pursuer) || pursuer.equals("")) {
+                            pursuer = sender;
+                            updatePursuerLocation(targetLocation);
+                        }
+                    } else if (message.equals("stopsignal")) {
                         progressDialog.dismiss();
                         missedLocationUpdates = 0;
                         targetpoints = points;
-                        updateTargetLocation(targetLocation);
+                    } else if (message.equals("giveNewSound")) {
+                        missedLocationUpdates = 0;
+                        markerTarget.remove();
+                        sound = (byte[]) data.get("sound");
+                        speelsound();
+                        Toast.makeText(gameMode.this, "music playing", Toast.LENGTH_SHORT).show();
                     }
+
+
                 } else if (category.equals(priorityCategory)) {
                     Log.i(TAG2, "Condition 2.5");
                     Log.i(TAG2, "Condition 2.5 part 2");
@@ -952,19 +1169,127 @@ public class gameMode extends AppCompatActivity
             } else {
                 Log.i(TAG2, "Condition 3");
             }
-        } catch (IndexOutOfBoundsException e) {
+        } catch (Exception e) {
             Log.i(TAG, e.toString());
-        } catch (JSONException e){
-            Log.i(TAG,e.toString());
-        } catch (NullPointerException e){
-            Log.i(TAG,e.toString());
         }
+    }
+    public void warnStopSignal(String sender){
+        JSONObject data = new JSONObject();
+        try {
+            data.put("sender", myusername);
+            data.put("receiver",sender);
+            data.put("category",locationUpdate);
+            data.put("message",giveNewLocation);
+            data.put("points",mypoints);
+            data.put("latitude",loc.latitude);
+            data.put("longitude",loc.longitude);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public boolean menuResponse(MenuItem menuItem) {
+        Log.i(TAG,"menu");
+        int id = menuItem.getItemId();
+        if (id == R.id.powerUpDefensiveUpdateFrequency) {
+            frequencyUpdate /= 2;
+            Log.i(TAG, "powerupDefensiveUpdateFrequency");
+            mHandler.removeCallbacks(targetLocationRequest);
+            assignTargetLocationRequest();
+            targetLocationRequest.run();
+            mHandler.removeCallbacks(targetLocationRequest);
+            frequencyUpdate *= 2;
+            assignTargetLocationRequest();
+            targetLocationRequest.run();
+
+        } else if (id == R.id.powerUpOffensiveEasyKill) {
+            easykill = true;
+        } else if (id == R.id.powerUpDefensiveStopSignal) {
+            stopSignal = true;
+            mHandler.postDelayed(new Runnable() {
+
+                @Override
+                public void run() {
+                    stopSignal = false;
+                }
+            }, 120000);
+        } else if (id == R.id.powerUpDefensiveSound) {
+            Log.i(TAG,"soundpowerup activated");
+            Soundpowerup = true;
+            mHandler.postDelayed(new Runnable(){
+
+                @Override
+                public void run() {
+                    Log.i(TAG,"soundpowerup disactivated");
+                    Soundpowerup = false;
+                }
+            },300000);
+        } else if (id == R.id.powerUpDefensivePursuer) {
+            FollowPursuer.run();
+            mHandler.postDelayed(FollowPursuer, 5000);
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mHandler.removeCallbacks(FollowPursuer);
+                    markerTarget2.remove();
+                }
+            }, 120000);
+        }
+        return true;
     }
 
     @Override
     public boolean onNavigationItemSelected(MenuItem menuItem) {
-        return false;
+        Log.i(TAG,"menu");
+        int id = menuItem.getItemId();
+        if (id == R.id.powerUpDefensiveUpdateFrequency) {
+            frequencyUpdate /= 2;
+            Log.i(TAG, "powerupDefensiveUpdateFrequency");
+            mHandler.removeCallbacks(targetLocationRequest);
+            assignTargetLocationRequest();
+            targetLocationRequest.run();
+            mHandler.removeCallbacks(targetLocationRequest);
+            frequencyUpdate *= 2;
+            assignTargetLocationRequest();
+            targetLocationRequest.run();
+
+        } else if (id == R.id.powerUpOffensiveEasyKill) {
+            easykill = true;
+        } else if (id == R.id.powerUpDefensiveStopSignal) {
+            stopSignal = true;
+            mHandler.postDelayed(new Runnable() {
+
+                @Override
+                public void run() {
+                    stopSignal = false;
+                }
+            }, 120000);
+        } else if (id == R.id.powerUpDefensiveSound) {
+            Log.i(TAG,"soundpowerup activated");
+            Soundpowerup = true;
+            mHandler.postDelayed(new Runnable(){
+
+                @Override
+                public void run() {
+                    Log.i(TAG,"soundpowerup disactivated");
+                    Soundpowerup = false;
+                }
+            },300000);
+        } else if (id == R.id.powerUpDefensivePursuer) {
+            FollowPursuer.run();
+            mHandler.postDelayed(FollowPursuer, 5000);
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mHandler.removeCallbacks(FollowPursuer);
+                    try {
+                        markerTarget2.remove();
+                    } catch (Exception e) {
+                        Log.i(TAG, e.toString());
+                    }
+                }
+            }, 120000);
+        }
+        return super.onOptionsItemSelected(menuItem);
     }
 }
-
-

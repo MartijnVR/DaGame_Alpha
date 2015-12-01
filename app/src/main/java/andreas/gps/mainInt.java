@@ -2,6 +2,7 @@ package andreas.gps;
 
 
 import android.app.Dialog;
+import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -19,7 +20,6 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.PopupMenu;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
@@ -54,6 +54,7 @@ public class mainInt extends AppCompatActivity
     private GoogleMap mMap;
     private GoogleApiClient mGoogleApiClient;
     public static final String TAG = "abcd";
+    public static final String TAG2 = "lol";
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private LocationRequest mLocationRequest;
     public Marker marker;
@@ -65,19 +66,6 @@ public class mainInt extends AppCompatActivity
     SharedPreferences.Editor editor;
 
 
-
-
-    // own created functions
-
-    public void showPopup(View v) {
-        Log.i("abc", "Popupfunctie");
-        //Creating the instance of PopupMenu
-        PopupMenu popup = new PopupMenu(this, v);
-        //Inflating the Popup using xml file
-        popup.getMenuInflater()
-                .inflate(R.menu.main_menu, popup.getMenu());
-        popup.show();
-    }
 
     // switch to other activity functions
 
@@ -175,11 +163,10 @@ public class mainInt extends AppCompatActivity
     }
 
 
-
-
     @Override
     public void onDestroy(){
         editor.putString("myusername","");
+        editor.apply();
         super.onDestroy();
     }
 
@@ -350,6 +337,7 @@ public class mainInt extends AppCompatActivity
 
     @Override
     public boolean onNavigationItemSelected(MenuItem menuItem) {
+
         int id = menuItem.getItemId();
 
         if (id == R.id.data1) {
@@ -389,24 +377,23 @@ public class mainInt extends AppCompatActivity
 
     public void LoggedIn(){
 
-        Button login = (Button)findViewById(R.id.login_toolbar);
-        Button logout = (Button)findViewById(R.id.logout_toolbar);
-        Button user = (Button)findViewById(R.id.user_toolbar);
+        MenuItem login = (MenuItem) findViewById(R.id.login_toolbar);
+        MenuItem logout = (MenuItem) findViewById(R.id.logout_toolbar);
+        MenuItem user = (MenuItem) findViewById(R.id.user_toolbar);
 
         try {
-            if (!preferences.getString("myusername", "").equals("")) {
-                login.setVisibility(View.VISIBLE);
-                logout.setVisibility(View.GONE);
-                user.setVisibility(View.GONE);
+            if (preferences.getString("myusername", "").equals("")) {
+                login.setVisible(true);
+                logout.setVisible(false);
+                user.setVisible(false);
             } else {
-                login.setVisibility(View.GONE);
-                logout.setVisibility(View.VISIBLE);
-                user.setVisibility(View.VISIBLE);
-
+                login.setVisible(false);
+                logout.setVisible(true);
+                user.setVisible(true);
             }
 
-        } catch ( Exception e){
-            Log.i(TAG,e.toString());
+        } catch (Exception e){
+            Log.i(TAG2,e.toString());
         }
     }
 
@@ -421,10 +408,8 @@ public class mainInt extends AppCompatActivity
         if (activeNetwork != null && activeNetwork.isConnected()) network_connected = true;
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) gps_connected = true;
         if (network_connected && gps_connected) connections_working = true;
-        Log.i(TAG,"Connecting apiclient");
+        Log.i(TAG, "Connecting apiclient");
         mGoogleApiClient.connect();
-
-        LoggedIn();
 
     }
 

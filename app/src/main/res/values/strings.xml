@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">andreas</string>
+    <string name="app_name">Da Game</string>
     <string name="title_activity_main_int">DaGame</string>
     <string name="coordinates">No coordinates to display :(</string>
     <string name="main_menu">menu</string>

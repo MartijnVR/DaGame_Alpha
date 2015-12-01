@@ -10,6 +10,7 @@
     android:background="#ffffff"
     tools:openDrawer="start">
 
+    <include layout="@layout/activity_maps"/>
 
     <android.support.design.widget.NavigationView
         android:id="@+id/nav_view_low_in_rank"
@@ -19,8 +20,6 @@
         android:fitsSystemWindows="true"
         app:menu="@menu/nav_drawer_gamemode"
         />
-
-    <include layout="@layout/activity_maps"/>
 
 
 </android.support.v4.widget.DrawerLayout>
