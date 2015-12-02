@@ -2,7 +2,6 @@ package andreas.gps;
 
 
 import android.app.Dialog;
-import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -54,7 +53,6 @@ public class mainInt extends AppCompatActivity
     private GoogleMap mMap;
     private GoogleApiClient mGoogleApiClient;
     public static final String TAG = "abcd";
-    public static final String TAG2 = "lol";
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private LocationRequest mLocationRequest;
     public Marker marker;
@@ -64,48 +62,61 @@ public class mainInt extends AppCompatActivity
     public float zoomlevel = 15;
     SharedPreferences preferences;
     SharedPreferences.Editor editor;
-
+    public Menu mymenu;
+    public MenuItem logout;
+    public MenuItem login;
+    public MenuItem user;
 
 
     // switch to other activity functions
 
-    public void switchGameMode(View view) {
+    public void switchGameMode() {
         if (!preferences.getString("myusername","").equals("")) {
+            Log.i(TAG,preferences.getString("myusername",""));
             Intent intent = new Intent(this, gameMode.class);
             startActivity(intent);
         } else {
             Toast.makeText(this, "Please log in first.", Toast.LENGTH_SHORT).show();
         }
     }
-    public void switchLogin(View view) {
+    public void switchLogin() {
         Intent intent = new Intent(this, login.class);
         startActivity(intent);
     }
-    public void switchLogout(View view){
+    public void switchLogout(){
         editor.putString("myusername", "");
+        editor.apply();
+        login.setEnabled(true);
+        logout.setEnabled(false);
+        user.setEnabled(false);
+        assert getSupportActionBar() != null;
+        getSupportActionBar().setTitle("Not logged in");
+
+        Toast.makeText(this, "You are now logged out.", Toast.LENGTH_SHORT).show();
     }
-    public void switchUser(View view){}
-    public void switchData1(View view) {
+    public void switchUser(){}
+    public void switchData1() {
         Intent intent = new Intent(this, data1.class);
         startActivity(intent);
     }
-    public void switchData2(View view) {
+    public void switchData2() {
         Intent intent = new Intent(this, data2.class);
         startActivity(intent);
     }
-    public void switchData3(View view) {
+    public void switchData3() {
         Intent intent = new Intent(this, data3.class);
         startActivity(intent);
 
-    }public void switchMiniggame1(View view) {
+    }
+    public void switchMiniggame1() {
         Intent intent = new Intent(this, minigame1.class);
         startActivity(intent);
     }
-    public void switchMiniggame2(View view) {
+    public void switchMiniggame2() {
         Intent intent = new Intent(this, minigame2.class);
         startActivity(intent);
     }
-    public void switchMinigame3(View view) {
+    public void switchMinigame3() {
         Intent intent = new Intent(this, minigame3.class);
         startActivity(intent);
     }
@@ -145,6 +156,7 @@ public class mainInt extends AppCompatActivity
         toggle.syncState();
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+        mymenu = navigationView.getMenu();
 
         //location
         mGoogleApiClient = new GoogleApiClient.Builder(this)
@@ -157,6 +169,11 @@ public class mainInt extends AppCompatActivity
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(5000)        // 5 seconds, in milliseconds
                 .setFastestInterval(1000); // 1 second, in milliseconds
+
+
+        login = mymenu.findItem(R.id.login_toolbar);
+        logout = mymenu.findItem(R.id.logout_toolbar);
+        user = mymenu.findItem(R.id.user_toolbar);
 
         preferences = getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
         editor = getSharedPreferences("MyPreferences",Context.MODE_PRIVATE).edit();
@@ -252,7 +269,6 @@ public class mainInt extends AppCompatActivity
 
 
     private void handleNewLocation(Location location) {
-        Log.d(TAG, "handling New Location");
         double currentLatitude = location.getLatitude();
         double currentLongitude = location.getLongitude();
         final LatLng latLng = new LatLng(currentLatitude, currentLongitude);
@@ -264,7 +280,6 @@ public class mainInt extends AppCompatActivity
                 .title("I am here!")
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
         marker = mMap.addMarker(options);
-        Log.i(TAG, "Marker placed");
 
         final Button zoombutton = (Button)findViewById(R.id.zoombutton);
 
@@ -301,7 +316,6 @@ public class mainInt extends AppCompatActivity
 
     @Override
     public void onLocationChanged(Location location) {
-        Log.i(TAG, "Location Changed.");
         handleNewLocation(location);
     }
 
@@ -316,7 +330,7 @@ public class mainInt extends AppCompatActivity
             case R.id.action_settings:
                 return true;
             case R.id.gameMode:
-                switchGameMode(null);
+                switchGameMode();
                 break;
 
         }
@@ -337,38 +351,37 @@ public class mainInt extends AppCompatActivity
 
     @Override
     public boolean onNavigationItemSelected(MenuItem menuItem) {
-
         int id = menuItem.getItemId();
 
         if (id == R.id.data1) {
-            switchData1(null);
+            switchData1();
         }
         else if (id == R.id.data2) {
-            switchData2(null);
+            switchData2();
         }
         else if (id == R.id.data3) {
-            switchData3(null);
+            switchData3();
         }
         else if (id == R.id.minigame1) {
-            switchMiniggame1(null);
+            switchMiniggame1();
         }
         else if (id == R.id.minigame2) {
-            switchMiniggame2(null);
+            switchMiniggame2();
         }
         else if (id == R.id.minigame3) {
-            switchMinigame3(null);
+            switchMinigame3();
         }
         else if (id == R.id.login_toolbar) {
-            switchLogin(null);
+            switchLogin();
         }
         else if (id == R.id.logout_toolbar){
-            switchLogout(null);
+            switchLogout();
         }
         else if (id == R.id.user_toolbar){
-            switchUser(null);
+            switchUser();
         }
-
-
+ 
+ 
         /*DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;*/
@@ -377,23 +390,15 @@ public class mainInt extends AppCompatActivity
 
     public void LoggedIn(){
 
-        MenuItem login = (MenuItem) findViewById(R.id.login_toolbar);
-        MenuItem logout = (MenuItem) findViewById(R.id.logout_toolbar);
-        MenuItem user = (MenuItem) findViewById(R.id.user_toolbar);
-
-        try {
-            if (preferences.getString("myusername", "").equals("")) {
-                login.setVisible(true);
-                logout.setVisible(false);
-                user.setVisible(false);
-            } else {
-                login.setVisible(false);
-                logout.setVisible(true);
-                user.setVisible(true);
-            }
-
-        } catch (Exception e){
-            Log.i(TAG2,e.toString());
+        if (preferences.getString("myusername", "").equals("")) {
+            login.setEnabled(true);
+            logout.setEnabled(false);
+            user.setEnabled(false);
+        } else {
+            Log.i(TAG,"setinvisible");
+            login.setEnabled(false);
+            logout.setEnabled(true);
+            user.setEnabled(true);
         }
     }
 
@@ -410,6 +415,17 @@ public class mainInt extends AppCompatActivity
         if (network_connected && gps_connected) connections_working = true;
         Log.i(TAG, "Connecting apiclient");
         mGoogleApiClient.connect();
+        String username = preferences.getString("myusername","");
+        if (!username.equals("")) {
+            Log.i(TAG,username+" logged in");
+            assert getSupportActionBar() != null;
+            getSupportActionBar().setTitle("Welcome "+username);
+        } else {
+            Log.i(TAG,"not logged in");
+            assert getSupportActionBar() != null;
+            getSupportActionBar().setTitle("Not logged in");
+        }
+        LoggedIn();
 
     }
 
@@ -423,4 +439,3 @@ public class mainInt extends AppCompatActivity
         }
     }
 }
-

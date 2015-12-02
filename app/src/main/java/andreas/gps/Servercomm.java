@@ -19,7 +19,7 @@ public class Servercomm extends Activity {
 
     public JSONObject receivedmessage;
     String TAG = "abcd";
-    private Socket mSocket;
+    public Socket mSocket;
     static ServercommEventListener mCallback;
 
 
@@ -79,7 +79,6 @@ public class Servercomm extends Activity {
         }
         mSocket.on("broadcastReceived", onNewMessage);
 
-        mSocket.connect();
 
         try {
             JSONObject obj = new JSONObject();

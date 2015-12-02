@@ -58,15 +58,14 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.Target;
-import java.util.Calendar;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.EmptyStackException;
-import java.util.List;
 import java.lang.Math;
+import java.util.Random;
 
+import andreas.gps.sensoren.SensorActor;
 import andreas.gps.sensoren.SensorCollector;
 import andreas.gps.sensoren.Sensor_SAVE;
 import andreas.gps.sensoren.SoundAct;
@@ -77,10 +76,10 @@ public class gameMode extends AppCompatActivity
         LocationListener, Servercomm.ServercommEventListener, NavigationView.OnNavigationItemSelectedListener {
 
     //    variables
+    public static SensorCollector sensorcol;
 
-    private Circle circleLoc;
     private Circle circleTarget;
-    private double radius = 10.0;
+    private double radius = 5.0;
     private static final String TAG = "abcd";
     private LatLng CURRENT_TARGET;
     private Marker markerTarget;
@@ -94,13 +93,13 @@ public class gameMode extends AppCompatActivity
     public float zoomlevel = 18;
     public boolean zoomed = false;
     public LatLng loc;
-    Calendar c = Calendar.getInstance();
     private double mySpeed = 0;
     private int kill_button_counter = 0;
     Marker markerTarget2 = null;
     public boolean Soundpowerup = false;
 
     //text kkillmoves
+    public boolean killmoveinprogress = false;
     public String TAG2 = "abcdef";
     private String killedText = "Kill confirmed!";
     private String killedPointsAddedText = "Points added!";
@@ -149,6 +148,7 @@ public class gameMode extends AppCompatActivity
     public int targetpoints = 0;
     public int mymoney;
     Dialog alertDialog;
+    public boolean pressquit = false;
     public boolean stopSignal = false;
     Integer frequencyUpdate = 32768;
     public String pursuer = "";
@@ -165,6 +165,33 @@ public class gameMode extends AppCompatActivity
     byte[] sound;
     public MediaRecorder mediaRecorder;
     AlertDialog.Builder builder;
+    public boolean hardkill = false;
+    public String previoustarget;
+    public Runnable changeMessage = new Runnable() {
+
+        @Override
+        public void run() {
+            if (!priorityID.equals("")) {
+                Log.i(TAG, "progressdialog changing text");
+                TargetID = priorityID;
+                notifyHunting();
+                progressDialog.setMessage("Tracking target..");
+
+            } else {
+                Log.i(TAG, "no target found yet");
+                progressDialog.dismiss();
+                show_alertdialog_target();
+            }
+            targetLocationRequest.run();
+        }
+    };
+    private Runnable changeTargetRunnable = new Runnable(){
+
+        @Override
+        public void run() {
+            changeTarget();
+        }
+    };
 
 
 
@@ -188,8 +215,7 @@ public class gameMode extends AppCompatActivity
                 this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawer.setDrawerListener(toggle);
         toggle.syncState();
-
-        final NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view_low_in_rank);
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view_low_in_rank);
         navigationView.setNavigationItemSelectedListener(this);
 
 
@@ -206,6 +232,8 @@ public class gameMode extends AppCompatActivity
         editor.apply();
         audioFilePath = getFilesDir().getAbsolutePath()+"abc.3gp";
         points_score = (TextView) findViewById(R.id.points_score);
+        SensorActor sensorsave = new Sensor_SAVE();
+        sensorcol = new SensorCollector(sensorsave);
         myusername = preferences.getString("myusername","unknown");
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
@@ -229,15 +257,11 @@ public class gameMode extends AppCompatActivity
                 Log.i(TAG, "running targetLocationRequest");
                 if (missedLocationUpdates > 2){
                     Toast.makeText(gameMode.this, "Target not responding, getting new target", Toast.LENGTH_SHORT).show();
+                    missedLocationUpdates = 0;
                     changeTarget();
                 } else if (TargetID.equals("")){
-                    Log.i(TAG, "Track new target");
-                    mHandler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            changeTarget();
-                        }
-                    },60000);
+                    Log.i(TAG, "No target yet");
+                    mHandler.postDelayed(changeTargetRunnable,60000);
                 } else {
                     Log.i(TAG, "request LocationUpdate");
                     requestLocationUpdate(TargetID);
@@ -249,17 +273,22 @@ public class gameMode extends AppCompatActivity
     @Override
     protected void onPause() {
         Log.i(TAG, "Paused.");
+        TargetID = "";
+        notifyOffline("");
+        notifyOffline(TargetID);
         super.onPause();
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient,this);
             mGoogleApiClient.disconnect();
         }
 
-        mymoney += mypoints;
         editor.putInt("mymoney", mymoney);
         editor.apply();
-        notifyOffline("");
-        notifyOffline(TargetID);
+        mHandler.removeCallbacks(targetLocationRequest);
+        mHandler.removeCallbacks(FollowPursuer);
+        mHandler.removeCallbacks(changeTargetRunnable);
+        mHandler.removeCallbacks(changeMessage);
+        mServercomm.mSocket.disconnect();
     }
     @Override
     protected void onResume() {
@@ -279,22 +308,19 @@ public class gameMode extends AppCompatActivity
             editorgame.apply();
 
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e("Not data shared", e.toString());
+            Log.e(TAG, e.toString());
         }
         if (activeNetwork != null && activeNetwork.isConnected()) network_connected = true;
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) gps_connected = true;
         Log.i(TAG, "Connecting apiclient");
         mGoogleApiClient.connect();
+        mServercomm.mSocket.connect();
         Log.i(TAG, "getting score");
-        mypoints += data.intValue();
+        mymoney = preferences.getInt("mymoney",0);
+        mypoints = data.intValue();
+        mymoney += mypoints;
         points_score.setText(String.format("%d", mypoints));
-        mHandler.postDelayed(new Runnable() {
-
-            @Override
-            public void run() {
-                changeTarget();
-            }
-        }, 1000);
+        mHandler.postDelayed(changeTargetRunnable,1000);
         Log.i(TAG, "got score");
 
     }
@@ -338,7 +364,6 @@ public class gameMode extends AppCompatActivity
                 LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
                 location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
             }
-            Log.i(TAG, "Handle New Location.");
             handleNewLocation(location);
 
 
@@ -402,16 +427,12 @@ public class gameMode extends AppCompatActivity
         builder.show();
     }
     private void handleNewLocation(Location location) {
-        Log.d(TAG, "handling New Location");
-        this.loc = new LatLng(location.getLatitude(), location.getLongitude());
-        Log.i(TAG, String.valueOf(loc));
+        loc = new LatLng(location.getLatitude(), location.getLongitude());
         if (!zoomed) {
             Log.i(TAG, "zooming.");
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loc, zoomlevel));
             zoomed = true;
         }
-
-
 
         if (mymarker != null) {
             mymarker.remove();
@@ -421,7 +442,6 @@ public class gameMode extends AppCompatActivity
                 .title("I am here!")
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
         mymarker = mMap.addMarker(options);
-        Log.i(TAG, "Marker placed.");
 
         if (!TargetID.equals("")) {
             initiateKillmove(loc, CURRENT_TARGET);
@@ -447,7 +467,6 @@ public class gameMode extends AppCompatActivity
     }
     @Override
     public void onLocationChanged(Location location) {
-        Log.i(TAG, "Location Changed.");
         mySpeed = location.getSpeed();
         handleNewLocation(location);
 
@@ -467,31 +486,74 @@ public class gameMode extends AppCompatActivity
 
     //Killmove
     public void initiateKillmove(LatLng location, LatLng target) {
-        if (CalculationByDistance(location, target) <= radius) {
-            killMovegenerator(null);
-            changeTarget();
+        if (!killmoveinprogress && CalculationByDistance(location, target) <= radius) {
+            killMovegenerator();
         }
     }
-    public void killMovegenerator(View view) {
-        int seconds = c.get(Calendar.SECOND);
-        if (easykill){
-            killMovePressButton(null);
+    public void killMovegenerator() {
+        killmoveinprogress = true;
+        mHandler.removeCallbacks(targetLocationRequest);
+        Log.i(TAG,"generating killmove");
+        Random rand = new Random();
+        SensorActor sensorsave = new Sensor_SAVE();
+        sensorcol.set(sensorsave);
+        sensorcol.start(getApplicationContext());
+
+        int random = rand.nextInt(7);
+        if (easykill) {
+            killMovePressButton();
             easykill = false;
-        } else if (seconds < 10) {
-            killMoveAccelor(null);
-        } else if (seconds >= 10 && seconds < 20) {
-            killMoveGyroscoop(null);
-        } else if (seconds >= 20 && seconds < 30) {
-            killMoveSound(null);
-        } else if (seconds >= 40 && seconds < 50) {
-            killMoveSpeed(null);
-        } else if (seconds >= 50 && seconds < 55) {
-            killMovePressButton(null);
-        } else if (seconds >= 55) {
-            killMovelight(null);
+        } else if (hardkill) {
+            killMoveSpeed();
+            hardkill = false;
+        } else {
+            switch (random) {
+                case 0:
+                    // check if compatible
+                    if (sensorcol.has_sensor(sensorcol.accelerometer)) {
+                        killMoveAccelor();
+                    } else {
+                        killMovegenerator();
+                    }
+                    break;
+                case 1:
+                    // check if compatible -> run
+                    if (sensorcol.has_sensor(sensorcol.gyroscoop)) {
+                        killMoveGyroscoop();
+                    } else {
+                        killMovegenerator();
+                    }
+                    break;
+                case 2:
+                    // geen sensorcollector nodig -->
+                    sensorcol.stop();
+                    // check if compatible -> run
+                    killMoveGyroscoop();
+
+                    break;
+                case 3:
+                    sensorcol.stop();
+                    killMoveSpeed();
+                    break;
+                case 4:
+                    sensorcol.stop();
+                    killMovePressButton();
+                    break;
+                case 5:
+                    if (sensorcol.has_sensor(sensorcol.light)) {
+                        killMovelight();
+                    } else {
+                        killMovegenerator();
+                    }
+                    break;
+                case 6:
+                    sensorcol.stop();
+                    killMoveSound();
+                    break;
+            }
         }
     }
-    public void killMoveAccelor(View view) {
+    public void killMoveAccelor() {
 
         new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -503,7 +565,7 @@ public class gameMode extends AppCompatActivity
                 killMoveText.setVisibility(View.VISIBLE);
                 sensorcol.start(getApplicationContext());
 
-                if (killmoveconfirmed==false) {
+                if (!killmoveconfirmed) {
                     killMoveText.setText(killmoveAcellorText + millisUntilFinished / 1000);
                 }
 
@@ -521,23 +583,27 @@ public class gameMode extends AppCompatActivity
             }
 
             public void onFinish() {
+                Log.i(TAG,"killmove acceleration ended");
                 sensorcol.stop();
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(Integer.toString(mypoints));
                 } else {
+                    Log.i(TAG,"not killed");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
-
+                changeTarget();
             }
         }.start();
 
     }
-    public void killMoveSound(View view) {
+    public void killMoveSound() {
 
         new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -560,22 +626,27 @@ public class gameMode extends AppCompatActivity
             }
 
             public void onFinish() {
+                Log.i(TAG, "killmove sound ended");
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(String.format("%d", mypoints));
                 } else {
+                    Log.i(TAG,"not killed");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
+                changeTarget();
 
             }
         }.start();
 
     }
-    public void killMoveGyroscoop(View view) {
+    public void killMoveGyroscoop() {
 
         new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -604,23 +675,28 @@ public class gameMode extends AppCompatActivity
             }
 
             public void onFinish() {
+                Log.i(TAG,"killmove gyroscoop ended");
                 sensorcol.stop();
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(Integer.toString(mypoints));
                 } else {
+                    Log.i(TAG,"not killed");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
+                changeTarget();
 
             }
         }.start();
 
     }
-    public void killMovelight(View view) {
+    public void killMovelight() {
 
         new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -650,23 +726,28 @@ public class gameMode extends AppCompatActivity
 
 
             public void onFinish() {
+                Log.i(TAG,"killmove light ended");
                 sensorcol.stop();
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(Integer.toString(mypoints));
                 } else {
+                    Log.i(TAG,"not killed!");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
+                changeTarget();
 
             }
         }.start();
 
     }
-    public void killMoveSpeed(View view) {
+    public void killMoveSpeed() {
 
         new CountDownTimer(killmovetimer, 200) {
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -686,16 +767,21 @@ public class gameMode extends AppCompatActivity
             }
 
             public void onFinish() {
+                Log.i(TAG,"killmove speed ended");
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed!");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(Integer.toString(mypoints));
                 } else {
+                    Log.i(TAG,"not killed");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
+                changeTarget();
 
             }
         }.start();
@@ -703,7 +789,7 @@ public class gameMode extends AppCompatActivity
     public void killMoveCounter(View view) {
         kill_button_counter += 1;
     }
-    public void killMovePressButton(View view) {
+    public void killMovePressButton() {
         new CountDownTimer(killmovetimer, 200) {
             Button kill_button = (Button) findViewById(R.id.kill_button);
             TextView killMoveText = (TextView) findViewById(R.id.killMoveText);
@@ -726,18 +812,23 @@ public class gameMode extends AppCompatActivity
             }
 
             public void onFinish() {
+                Log.i(TAG,"killmove button ended");
                 kill_button_counter = 0;
                 kill_button.setVisibility(View.GONE);
                 killmoveconfirmed=false;
                 if (killMoveText.getText() == killedText) {
+                    Log.i(TAG,"killed!");
                     killMoveText.setText(killedPointsAddedText);
                     killMoveText.setVisibility(View.GONE);
                     mypoints += 100;
+                    mymoney += 100;
                     points_score.setText(Integer.toString(mypoints));
                 } else {
+                    Log.i(TAG,"not killed!");
                     killMoveText.setText(killedNotText);
                     killMoveText.setVisibility(View.GONE);
                 }
+                changeTarget();
 
             }
         }.start();
@@ -807,10 +898,10 @@ public class gameMode extends AppCompatActivity
             Log.i(TAG, e.toString());
         }
     }
-    public void speelsound(){
+    public void speelsound() {
         Log.i(TAG, "speelsound");
         try {
-            FileOutputStream fos = null;
+            FileOutputStream fos;
 
             File path = File.createTempFile("temp_audio", "3gp", getCacheDir());
             fos = new FileOutputStream(path);
@@ -839,7 +930,7 @@ public class gameMode extends AppCompatActivity
             data.put("points", mypoints);
             data.put("latitude", loc.latitude);
             data.put("longitude", loc.longitude);
-        } catch (JSONException e){
+        } catch (Exception e){
             Log.e(TAG, e.toString());
         }
         mServercomm.sendMessage(data);
@@ -866,9 +957,15 @@ public class gameMode extends AppCompatActivity
     }
     public void changeTarget() {
         Log.i(TAG, "changeTarget");
-        if (markerTarget != null){
+        previoustarget = TargetID;
+        TargetID = "";
+        try{
             markerTarget.remove();
+            circleTarget.remove();
+        } catch (Exception e){
+            Log.i(TAG,e.toString());
         }
+        killmoveinprogress = false;
         prioritylevel = 0;
         priorityID = "";
         JSONObject data = new JSONObject();
@@ -880,34 +977,20 @@ public class gameMode extends AppCompatActivity
             data.put("points",mypoints);
             data.put("latitude",loc.latitude);
             data.put("longitude",loc.longitude);
-        } catch (JSONException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         mServercomm.sendMessage(data);
         Log.i(TAG, "starting progressdialog");
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Picking target..");
-        progressDialog.show();
-        Runnable changeMessage = new Runnable() {
+        try{
+            progressDialog.show();
+        } catch (Exception e) {
+            Log.i(TAG, e.toString());
+        }
 
-            @Override
-            public void run() {
-                if (!priorityID.equals("")) {
-                    Log.i(TAG, "progressdialog changing text");
-                    TargetID = priorityID;
-                    notifyHunting();
-                    progressDialog.setMessage("Tracking target..");
-
-                } else {
-                    Log.i(TAG, "no target found yet");
-                    progressDialog.dismiss();
-                    show_alertdialog_target();
-                }
-                targetLocationRequest.run();
-            }
-        };
-
-        new Handler().postDelayed(changeMessage, 2000);
+        mHandler.postDelayed(changeMessage, 2000);
     }
     public void notifyHunting() {
         JSONObject data = new JSONObject();
@@ -947,7 +1030,11 @@ public class gameMode extends AppCompatActivity
         });
         alertDialog = builder.create();
         alertDialog.setCanceledOnTouchOutside(true);
-        alertDialog.show();
+        try {
+            alertDialog.show();
+        } catch (WindowManager.BadTokenException e){
+            Log.i(TAG,e.toString());
+        }
     }
     public void targetbutton(View view) {
         Log.i(TAG, "Targetbutton pressed.");
@@ -955,7 +1042,6 @@ public class gameMode extends AppCompatActivity
             LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
             boundsBuilder.include(loc);
             boundsBuilder.include(CURRENT_TARGET);
-// pan to see all markers on map:
             LatLngBounds bounds = boundsBuilder.build();
             mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
         }
@@ -986,7 +1072,7 @@ public class gameMode extends AppCompatActivity
             //String points_str = (String) points_score.getText();
             //int points_int = Integer.parseInt(points_str);
             int points_int = 1000;
-            double priority = Math.log10(points_int);
+            double priority = 2 * Math.log10(points_int);
             priority -= huntedby;
             JSONObject data = new JSONObject();
             try {
@@ -1044,7 +1130,7 @@ public class gameMode extends AppCompatActivity
             }
             Log.i(TAG, "exception");
             if (markerTarget == null && circleTarget == null) {
-                markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title("TARGET"));
+                markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title(TargetID+"\n"+"points: "+targetpoints));
                 circleTarget = mMap.addCircle(new CircleOptions()
                         .center(CURRENT_TARGET)
                         .radius(radius)
@@ -1054,7 +1140,7 @@ public class gameMode extends AppCompatActivity
                 markerTarget.remove();
                 circleTarget.remove();
 
-                markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title("TARGET"));
+                markerTarget = mMap.addMarker(new MarkerOptions().position(CURRENT_TARGET).title(TargetID+"\n"+"points: "+targetpoints));
                 circleTarget = mMap.addCircle(new CircleOptions()
                         .center(CURRENT_TARGET)
                         .radius(radius)
@@ -1067,12 +1153,8 @@ public class gameMode extends AppCompatActivity
     }
     public void updatePursuerLocation(LatLng location) {
         Log.i(TAG, "updating pursuer location");
-        LatLng pursuer = location;
         Log.i(TAG, "exception");
-        if (markerTarget2 != null) {
-            markerTarget2.remove();
-        }
-        markerTarget2 = mMap.addMarker(new MarkerOptions().position(pursuer).title("PURSUER"));
+        markerTarget2 = mMap.addMarker(new MarkerOptions().position(location).title("PURSUER").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
 
 
     }
@@ -1109,6 +1191,8 @@ public class gameMode extends AppCompatActivity
                     sendPriority(sender,targetLocation);
                 } else if (category.equals(locationUpdate) && sender.equals(TargetID)){
                     sendLocation(sender);
+                } else if (message.equals("HardKill") && sender.equals(TargetID)) {
+                    hardkill = true;
                 }
             } else if (receiver.equals(myusername)) {
                 Log.i(TAG2, "Condition 2");
@@ -1139,18 +1223,35 @@ public class gameMode extends AppCompatActivity
                             progressDialog.dismiss();
                             missedLocationUpdates = 0;
                             targetpoints = points;
+                            try{
+                                markerTarget.remove();
+                                circleTarget.remove();
+                            } catch (Exception e){
+                                Log.i(TAG,e.toString());
+                            }
                             updateTargetLocation(targetLocation);
                         } else if (sender.equals(pursuer) || pursuer.equals("")) {
                             pursuer = sender;
+                            try{
+                                markerTarget2.remove();
+                            } catch (Exception e){
+                                Log.i(TAG,e.toString());
+                            }
                             updatePursuerLocation(targetLocation);
                         }
                     } else if (message.equals("stopsignal")) {
                         progressDialog.dismiss();
                         missedLocationUpdates = 0;
                         targetpoints = points;
+                        Toast.makeText(gameMode.this, "Target blocked signal!", Toast.LENGTH_LONG).show();
                     } else if (message.equals("giveNewSound")) {
                         missedLocationUpdates = 0;
-                        markerTarget.remove();
+                        try{
+                            markerTarget.remove();
+                            circleTarget.remove();
+                        } catch (Exception e){
+                            Log.i(TAG,e.toString());
+                        }
                         sound = (byte[]) data.get("sound");
                         speelsound();
                         Toast.makeText(gameMode.this, "music playing", Toast.LENGTH_SHORT).show();
@@ -1162,8 +1263,10 @@ public class gameMode extends AppCompatActivity
                     Log.i(TAG2, "Condition 2.5 part 2");
                     if (Double.parseDouble(message) > prioritylevel) {
                         Log.i(TAG2, "Condition 2.5.1");
-                        prioritylevel = Double.parseDouble(message);
-                        priorityID = sender;
+                        if (!sender.equals(previoustarget)){
+                            prioritylevel = Double.parseDouble(message);
+                            priorityID = sender;
+                        }
                     }
                 }
             } else {
@@ -1186,56 +1289,7 @@ public class gameMode extends AppCompatActivity
         } catch (JSONException e) {
             e.printStackTrace();
         }
-    }
-
-    public boolean menuResponse(MenuItem menuItem) {
-        Log.i(TAG,"menu");
-        int id = menuItem.getItemId();
-        if (id == R.id.powerUpDefensiveUpdateFrequency) {
-            frequencyUpdate /= 2;
-            Log.i(TAG, "powerupDefensiveUpdateFrequency");
-            mHandler.removeCallbacks(targetLocationRequest);
-            assignTargetLocationRequest();
-            targetLocationRequest.run();
-            mHandler.removeCallbacks(targetLocationRequest);
-            frequencyUpdate *= 2;
-            assignTargetLocationRequest();
-            targetLocationRequest.run();
-
-        } else if (id == R.id.powerUpOffensiveEasyKill) {
-            easykill = true;
-        } else if (id == R.id.powerUpDefensiveStopSignal) {
-            stopSignal = true;
-            mHandler.postDelayed(new Runnable() {
-
-                @Override
-                public void run() {
-                    stopSignal = false;
-                }
-            }, 120000);
-        } else if (id == R.id.powerUpDefensiveSound) {
-            Log.i(TAG,"soundpowerup activated");
-            Soundpowerup = true;
-            mHandler.postDelayed(new Runnable(){
-
-                @Override
-                public void run() {
-                    Log.i(TAG,"soundpowerup disactivated");
-                    Soundpowerup = false;
-                }
-            },300000);
-        } else if (id == R.id.powerUpDefensivePursuer) {
-            FollowPursuer.run();
-            mHandler.postDelayed(FollowPursuer, 5000);
-            mHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mHandler.removeCallbacks(FollowPursuer);
-                    markerTarget2.remove();
-                }
-            }, 120000);
-        }
-        return true;
+        mServercomm.sendMessage(data);
     }
 
     @Override
@@ -1282,14 +1336,46 @@ public class gameMode extends AppCompatActivity
                 @Override
                 public void run() {
                     mHandler.removeCallbacks(FollowPursuer);
-                    try {
-                        markerTarget2.remove();
-                    } catch (Exception e) {
-                        Log.i(TAG, e.toString());
-                    }
+                    markerTarget2.remove();
                 }
             }, 120000);
+        } else if (id == R.id.powerUpDefensiveHardKill){
+            sendHardKillMessage();
         }
         return super.onOptionsItemSelected(menuItem);
     }
+
+    public void sendHardKillMessage(){
+        JSONObject data = new JSONObject();
+        try {
+            data.put("sender", myusername);
+            data.put("receiver","");
+            data.put("category","");
+            data.put("message","HardKill");
+            data.put("points",mypoints);
+            data.put("latitude",loc.latitude);
+            data.put("longitude",loc.longitude);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        mServercomm.sendMessage(data);
+    }
+
+    @Override
+    public void onBackPressed(){
+        if (pressquit){
+            startActivity(new Intent(this,mainInt.class));
+        } else {
+            Toast.makeText(gameMode.this, "Press again to quit the game.", Toast.LENGTH_LONG).show();
+            pressquit = true;
+            mHandler.postDelayed(new Runnable(){
+
+                @Override
+                public void run() {
+                    pressquit = false;
+                }
+            },15000);
+        }
+    }
+
 }

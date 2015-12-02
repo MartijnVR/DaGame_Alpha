@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="text_size_shop_item">15sp</dimen>
-    <dimen name="text_size_shop_title">30sp</dimen>
-    <dimen name="text_size_shop_information">0dp</dimen>
+    <dimen name="text_size_title2">20sp</dimen>
+    <dimen name="text_size_title1">25sp</dimen>
+    <dimen name="text_size_information">15dp</dimen>
 
 </resources>
